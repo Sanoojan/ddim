@@ -245,7 +245,7 @@ class Diffusion(object):
         config = self.config
         img_id = len(glob.glob(f"{self.args.image_folder}/*"))
         print(f"starting from image {img_id}")
-        total_n_samples = 50000
+        total_n_samples = 96  # 50000 @sanoojan
         n_rounds = (total_n_samples - img_id) // config.sampling.batch_size
 
         with torch.no_grad():
@@ -263,7 +263,8 @@ class Diffusion(object):
 
                 x = self.sample_image(x, model)
                 x = inverse_data_transform(config, x)
-
+                #resize to 256x256
+                x = torch.nn.functional.interpolate(x, size=(256, 256), mode='bilinear', align_corners=False)
                 for i in range(n):
                     tvu.save_image(
                         x[i], os.path.join(self.args.image_folder, f"{img_id}.png")

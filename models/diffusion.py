@@ -230,14 +230,27 @@ class Model(nn.Module):
 
         curr_res = resolution
         in_ch_mult = (1,)+ch_mult
+
         self.down = nn.ModuleList()
         block_in = None
         for i_level in range(self.num_resolutions):
             block = nn.ModuleList()
             attn = nn.ModuleList()
+
             block_in = ch*in_ch_mult[i_level]
             block_out = ch*ch_mult[i_level]
+            
+            
+            # print(block_in, block_out)
+            # breakpoint()
             for i_block in range(self.num_res_blocks):
+                
+                if i_level == 0 and i_block == 0:
+                    block_in=2*block_in
+                    # block_out=2*block_out
+                # if i_level == 1:
+                #     block_in=2*block_in
+
                 block.append(ResnetBlock(in_channels=block_in,
                                          out_channels=block_out,
                                          temb_channels=self.temb_ch,
@@ -272,9 +285,20 @@ class Model(nn.Module):
             attn = nn.ModuleList()
             block_out = ch*ch_mult[i_level]
             skip_in = ch*ch_mult[i_level]
+            
             for i_block in range(self.num_res_blocks+1):
+
+                
+                #     block_out=2*block_out
+                # if i_level == 1:
+                #     skip_in=2*skip_in
                 if i_block == self.num_res_blocks:
                     skip_in = ch*in_ch_mult[i_level]
+                
+                if i_level == 0 and i_block == 2:
+                    # pass
+                    skip_in=2*skip_in
+                # print(i_level,i_block,block_in,skip_in,block_out)
                 block.append(ResnetBlock(in_channels=block_in+skip_in,
                                          out_channels=block_out,
                                          temb_channels=self.temb_ch,
@@ -297,16 +321,19 @@ class Model(nn.Module):
                                         kernel_size=3,
                                         stride=1,
                                         padding=1)
+        
+        # print(self)
 
-    def forward(self, x, t):
+    def forward(self, x, t,return_latents=False):
+        # print(x.shape)
         assert x.shape[2] == x.shape[3] == self.resolution
-
+        
         # timestep embedding
         temb = get_timestep_embedding(t, self.ch)
         temb = self.temb.dense[0](temb)
         temb = nonlinearity(temb)
         temb = self.temb.dense[1](temb)
-
+        
         # downsampling
         hs = [self.conv_in(x)]
         for i_level in range(self.num_resolutions):
@@ -323,7 +350,7 @@ class Model(nn.Module):
         h = self.mid.block_1(h, temb)
         h = self.mid.attn_1(h)
         h = self.mid.block_2(h, temb)
-
+        latent=h
         # upsampling
         for i_level in reversed(range(self.num_resolutions)):
             for i_block in range(self.num_res_blocks+1):
@@ -338,4 +365,59 @@ class Model(nn.Module):
         h = self.norm_out(h)
         h = nonlinearity(h)
         h = self.conv_out(h)
-        return h
+        if return_latents:
+            return h,latent
+        else:
+            return h
+    def forward_swap(self, x, t):
+        # print(x.shape)
+        assert x.shape[2] == x.shape[3] == self.resolution
+        B=x.shape[0]  # x.shape: [bs,3,res,res]   t.shape: [bs] (8,3,256,256)
+        No_src_imgs=B//2
+        
+        # timestep embedding
+        temb = get_timestep_embedding(t, self.ch)
+        temb = self.temb.dense[0](temb)
+        temb = nonlinearity(temb)
+        temb = self.temb.dense[1](temb)   # [bs,temb_ch]  temb_ch=512  (8,512)
+        # downsampling
+        hs = [self.conv_in(x)]   # (8,128,256,256)
+        # stack first 4 images on top of other 4 images  such that hs dimension is (8,256,256,256)
+        hs[0]=torch.cat((hs[0][:No_src_imgs],hs[0][No_src_imgs:]),dim=1)
+        # breakpoint()
+
+        #self.num_resolutions=5 self.num_res_blocks=2
+        for i_level in range(self.num_resolutions):
+            for i_block in range(self.num_res_blocks):
+                h = self.down[i_level].block[i_block](hs[-1], temb)
+                if len(self.down[i_level].attn) > 0:
+                    h = self.down[i_level].attn[i_block](h)
+                hs.append(h)
+            if i_level != self.num_resolutions-1:
+                hs.append(self.down[i_level].downsample(hs[-1]))
+        # len(hs)=15  hs[-1]:(8,512,16,16)
+        # breakpoint()
+        # middle
+        h = hs[-1]
+        h = self.mid.block_1(h, temb)
+        h = self.mid.attn_1(h)
+        h = self.mid.block_2(h, temb)
+        latent=h
+        # latent:(8,512,16,16)
+        # upsampling
+        for i_level in reversed(range(self.num_resolutions)):
+            for i_block in range(self.num_res_blocks+1):
+                # print(h.shape,hs[-1].shape)
+                # print(i_level,i_block)
+                h = self.up[i_level].block[i_block](
+                    torch.cat([h, hs.pop()], dim=1), temb)
+                if len(self.up[i_level].attn) > 0:
+                    h = self.up[i_level].attn[i_block](h)
+            if i_level != 0:
+                h = self.up[i_level].upsample(h)
+
+        # end
+        h = self.norm_out(h)
+        h = nonlinearity(h)
+        h = self.conv_out(h)
+        return h,latent

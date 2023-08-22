@@ -1,0 +1,2 @@
+python main.py --config celeba.yml --exp "Exp1" --doc "Exp1" --sample --fid --timesteps 1000 --eta 0.0 --ni 
+# python main.py --config celeba.yml --exp "Exp1" --doc "Exp1" --sample --interpolation --timesteps 1000 --eta 1.0 --ni
