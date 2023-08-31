@@ -192,6 +192,7 @@ class AttnBlock(nn.Module):
 class Model(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.for_face_swap=False
         self.config = config
         ch, out_ch, ch_mult = config.model.ch, config.model.out_ch, tuple(config.model.ch_mult)
         num_res_blocks = config.model.num_res_blocks
@@ -245,7 +246,7 @@ class Model(nn.Module):
             # breakpoint()
             for i_block in range(self.num_res_blocks):
                 
-                if i_level == 0 and i_block == 0:
+                if i_level == 0 and i_block == 0 and self.for_face_swap:
                     block_in=2*block_in
                     # block_out=2*block_out
                 # if i_level == 1:
@@ -288,14 +289,11 @@ class Model(nn.Module):
             
             for i_block in range(self.num_res_blocks+1):
 
-                
-                #     block_out=2*block_out
-                # if i_level == 1:
-                #     skip_in=2*skip_in
+     
                 if i_block == self.num_res_blocks:
                     skip_in = ch*in_ch_mult[i_level]
                 
-                if i_level == 0 and i_block == 2:
+                if i_level == 0 and i_block == 2 and self.for_face_swap:
                     # pass
                     skip_in=2*skip_in
                 # print(i_level,i_block,block_in,skip_in,block_out)

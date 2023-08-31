@@ -205,6 +205,7 @@ class Diffusion(object):
                     ),
                     map_location=self.config.device,
                 )
+            # breakpoint()
             model = model.to(self.device)
             model = torch.nn.DataParallel(model)
             model.load_state_dict(states[0], strict=True)
@@ -335,6 +336,7 @@ class Diffusion(object):
             tvu.save_image(x[i], os.path.join(self.args.image_folder, f"{i}.png"))
 
     def sample_image(self, x, model, last=True):
+        # x: [N, C, H, W] self.betas:[1000] self.args.eta=0
         try:
             skip = self.args.skip
         except Exception:
@@ -343,7 +345,7 @@ class Diffusion(object):
         if self.args.sample_type == "generalized":
             if self.args.skip_type == "uniform":
                 skip = self.num_timesteps // self.args.timesteps
-                seq = range(0, self.num_timesteps, skip)
+                seq = range(0, self.num_timesteps, skip)   # 0,..,1000
             elif self.args.skip_type == "quad":
                 seq = (
                     np.linspace(
@@ -355,8 +357,9 @@ class Diffusion(object):
             else:
                 raise NotImplementedError
             from functions.denoising import generalized_steps
-
+            # breakpoint()
             xs = generalized_steps(x, seq, model, self.betas, eta=self.args.eta)
+            # breakpoint()
             x = xs
         elif self.args.sample_type == "ddpm_noisy":
             if self.args.skip_type == "uniform":

@@ -22,7 +22,7 @@ def generalized_steps(x, seq, model, b, **kwargs):
             et = model(xt, t)
             if len(et)==2:
                 et = et[0]
-            # breakpoint()
+            breakpoint()
             x0_t = (xt - et * (1 - at).sqrt()) / at.sqrt()
             x0_preds.append(x0_t.to('cpu'))
             c1 = (
