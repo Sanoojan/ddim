@@ -192,7 +192,7 @@ class AttnBlock(nn.Module):
 class Model(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.for_face_swap=False
+        self.for_face_swap=True
         self.config = config
         ch, out_ch, ch_mult = config.model.ch, config.model.out_ch, tuple(config.model.ch_mult)
         num_res_blocks = config.model.num_res_blocks
@@ -369,6 +369,7 @@ class Model(nn.Module):
             return h
     def forward_swap(self, x, t):
         # print(x.shape)
+        # breakpoint()
         assert x.shape[2] == x.shape[3] == self.resolution
         B=x.shape[0]  # x.shape: [bs,3,res,res]   t.shape: [bs] (8,3,256,256)
         No_src_imgs=B//2
@@ -418,4 +419,5 @@ class Model(nn.Module):
         h = self.norm_out(h)
         h = nonlinearity(h)
         h = self.conv_out(h)
+        # breakpoint()
         return h,latent
